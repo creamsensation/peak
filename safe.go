@@ -1,3 +1,5 @@
 package peak
 
-type Safe []byte
+import "github.com/creamsensation/quirk"
+
+type Safe = quirk.Safe

@@ -10,7 +10,7 @@ type ShapeBuilder interface {
 	Start(start int) ShapeBuilder
 	Max(max int) ShapeBuilder
 	Duplicates() DuplicatesBuilder
-	Sort(aliases ...map[string]string) SortBuilder
+	Sort(aliases ...map[string]Field) SortBuilder
 }
 
 type SortBuilder interface {
@@ -32,7 +32,7 @@ type shapeBuilder struct {
 	groupFields []QueryBuilder
 	distinct    bool
 	sorts       []Sorter
-	sortAliases map[string]string
+	sortAliases map[string]Field
 }
 
 type Sorter struct {
@@ -48,7 +48,7 @@ const (
 func Shape() ShapeBuilder {
 	return &shapeBuilder{
 		sorts:       make([]Sorter, 0),
-		sortAliases: make(map[string]string),
+		sortAliases: make(map[string]Field),
 	}
 }
 
@@ -62,7 +62,7 @@ func (b *shapeBuilder) Max(max int) ShapeBuilder {
 	return b
 }
 
-func (b *shapeBuilder) Sort(aliases ...map[string]string) SortBuilder {
+func (b *shapeBuilder) Sort(aliases ...map[string]Field) SortBuilder {
 	if len(aliases) > 0 {
 		b.sortAliases = aliases[0]
 	}
@@ -113,12 +113,13 @@ func (b *shapeBuilder) Build() BuildResult {
 func (b *shapeBuilder) buildSorts() string {
 	r := make([]string, len(b.sorts))
 	for i, s := range b.sorts {
-		f, ok := b.sortAliases[s.Field]
+		aliasedField, ok := b.sortAliases[s.Field]
 		if ok {
-			r[i] = fmt.Sprintf("%s %s", f, s.Direction)
+			f := aliasedField.(*field)
+			r[i] = fmt.Sprintf("%s.%s %s", f.prefix, f.name, strings.ToUpper(s.Direction))
 			continue
 		}
-		r[i] = fmt.Sprintf("%s %s", s.Field, s.Direction)
+		r[i] = fmt.Sprintf("%s %s", s.Field, strings.ToUpper(s.Direction))
 	}
 	return strings.Join(r, ",")
 }

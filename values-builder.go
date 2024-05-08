@@ -6,6 +6,8 @@ type valuesBuilder struct {
 	values any
 }
 
+type Value any
+
 const (
 	fieldDbTagName = "db"
 )

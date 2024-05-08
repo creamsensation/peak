@@ -1,19 +1,25 @@
 package peak
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"strings"
+	
+	"github.com/thanhpk/randstr"
+	
+	"github.com/creamsensation/quirk"
 )
 
+func TsVector(values ...any) string {
+	return quirk.CreateTsVector(values...)
+}
+
 func generateRandomString(length int) string {
-	b := make([]byte, length)
-	_, err := rand.Read(b)
-	if err != nil {
-		return ""
-	}
-	return base64.StdEncoding.EncodeToString(b)
+	// b := make([]byte, length)
+	// _, err := rand.Read(b)
+	// if err != nil {
+	// 	return ""
+	// }
+	return randstr.Hex(length)
 }
 
 func findField(name string, fields []Field) *field {
@@ -31,26 +37,32 @@ func findField(name string, fields []Field) *field {
 
 func createInsertSqlFromValues(fields []Field, values map[string]any) string {
 	sql := make([]string, 0)
-	for k, v := range values {
+	for _, item := range fields {
+		if item == nil {
+			continue
+		}
+		f := item.(*field)
+		if f.primaryKey {
+			continue
+		}
+		v, ok := values[f.name]
+		if !ok {
+			continue
+		}
 		switch val := v.(type) {
 		case Safe:
 			sql = append(sql, string(val))
 		case nil:
-			f := findField(k, fields)
-			if f.primaryKey {
-				continue
-			}
-			if f == nil || (f != nil && f.notNull) {
+			if f.notNull {
 				sql = append(sql, "DEFAULT")
 				continue
 			}
-			if f != nil && !f.notNull {
+			if !f.notNull {
 				sql = append(sql, "NULL")
 				continue
 			}
 		default:
-			sql = append(sql, fmt.Sprintf("@%s", k))
-			continue
+			sql = append(sql, createFieldValuePlaceholder(f.name, f))
 		}
 	}
 	return strings.Join(sql, ",")
@@ -58,37 +70,40 @@ func createInsertSqlFromValues(fields []Field, values map[string]any) string {
 
 func createUpdateSqlFromValues(fields []Field, values map[string]any) string {
 	sql := make([]string, 0)
-	for k, v := range values {
-		f := findField(k, fields)
+	for _, item := range fields {
+		if item == nil {
+			continue
+		}
+		f := item.(*field)
 		if f.primaryKey {
+			continue
+		}
+		v, ok := values[f.name]
+		if !ok {
 			continue
 		}
 		switch val := v.(type) {
 		case Safe:
-			if f == nil {
-				sql = append(sql, fmt.Sprintf("%s = %s", k, string(val)))
-				continue
-			}
 			sql = append(sql, fmt.Sprintf("%s.%s = %s", f.prefix, f.name, string(val)))
 		case nil:
-			if f == nil {
-				sql = append(sql, fmt.Sprintf("%s = DEFAULT", k))
-				continue
-			}
-			if f != nil && f.notNull {
-				sql = append(sql, fmt.Sprintf("%s.%s = DEFAULT", f.prefix, f.name))
-				continue
-			}
-			if f != nil && !f.notNull {
+			if !f.notNull {
 				sql = append(sql, fmt.Sprintf("%s.%s = NULL", f.prefix, f.name))
 				continue
 			}
 		default:
-			sql = append(sql, fmt.Sprintf("%[1]s.%[2]s = @%[2]s", f.prefix, f.name))
-			continue
+			sql = append(sql, fmt.Sprintf("%s.%s = %s", f.prefix, f.name, createFieldValuePlaceholder(f.name, f)))
 		}
 	}
 	return strings.Join(sql, ",")
+}
+
+func createFieldValuePlaceholder(k string, f *field) string {
+	switch f.dataType {
+	case TsVectorDataType:
+		return fmt.Sprintf("to_tsvector(@%s)", k)
+	default:
+		return fmt.Sprintf("@%s", k)
+	}
 }
 
 func buildFieldsSql[T QueryBuilder](builders ...T) string {

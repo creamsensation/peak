@@ -2,6 +2,7 @@ package peak
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	
 	"github.com/stretchr/testify/assert"
@@ -145,6 +146,25 @@ func TestFilterBuilder(t *testing.T) {
 				`SELECT t.id,t.email FROM test AS t WHERE t.id = @value1 HAVING COUNT(t.id) > @value2`,
 				b.Sql,
 			)
+		},
+	)
+	t.Run(
+		"tsquery", func(t *testing.T) {
+			r := Repository[testEntity, []int](nil).Find(
+				Filter().Field(te.Vectors()).Match().TsQuery("test1", "test2"),
+			)
+			b := r.Build()
+			qp := `SELECT t.id,t.email FROM test AS t WHERE t.vectors @@ to_tsquery(@query`
+			paramName := strings.TrimSuffix(
+				strings.TrimPrefix(b.Sql, qp),
+				")",
+			)
+			assert.Contains(
+				t,
+				b.Sql,
+				qp,
+			)
+			assert.Equal(t, "test:*", b.Values["query"+paramName])
 		},
 	)
 }

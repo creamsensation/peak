@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	
+	"github.com/creamsensation/quirk"
 )
 
 type FilterBuilder interface {
 	QueryBuilder
-	Group(builders ...QueryBuilder) FilterBuilder
+	Group(builders ...FilterBuilder) FilterBuilder
 	Field(field QueryBuilder) FilterBuilder
 	Equal(equal ...bool) FilterBuilder
 	Is() FilterBuilder
@@ -18,6 +20,9 @@ type FilterBuilder interface {
 	Gte() FilterBuilder
 	Lt() FilterBuilder
 	Lte() FilterBuilder
+	Match() FilterBuilder
+	Not(not ...bool) FilterBuilder
+	TsQuery(values ...any) FilterBuilder
 }
 
 type filterBuilder struct {
@@ -33,11 +38,20 @@ const (
 	filterValuePart    = "filter-value"
 )
 
+var (
+	fulltextValuesReplacer = strings.NewReplacer(
+	
+	)
+)
+
 func Filter(modifiers ...Modifier) FilterBuilder {
 	fb := &filterBuilder{
 		parts: make([]queryPart, 0),
 	}
 	for _, m := range modifiers {
+		if m == nil {
+			continue
+		}
 		switch m.Type() {
 		case modifierOr:
 			fb.or = true
@@ -48,11 +62,23 @@ func Filter(modifiers ...Modifier) FilterBuilder {
 	return fb
 }
 
-func (b *filterBuilder) Group(builders ...QueryBuilder) FilterBuilder {
+func (b *filterBuilder) Group(builders ...FilterBuilder) FilterBuilder {
 	var sql []string
 	values := make(map[string]any)
-	for _, item := range builders {
+	for i, item := range builders {
+		if item == nil {
+			continue
+		}
 		build := item.Build()
+		if i > 0 {
+			f := item.(*filterBuilder)
+			if !f.or {
+				sql = append(sql, "AND")
+			}
+			if f.or {
+				sql = append(sql, "OR")
+			}
+		}
 		sql = append(sql, build.Sql)
 		for k, v := range build.Values {
 			values[k] = v
@@ -90,6 +116,32 @@ func (b *filterBuilder) Equal(equal ...bool) FilterBuilder {
 		operator = "!="
 	}
 	b.parts = append(b.parts, queryPart{partType: filterOperatorPart, sql: operator})
+	return b
+}
+
+func (b *filterBuilder) Match() FilterBuilder {
+	b.parts = append(b.parts, queryPart{partType: filterOperatorPart, sql: "@@"})
+	return b
+}
+
+func (b *filterBuilder) TsQuery(values ...any) FilterBuilder {
+	queryName := "query" + generateRandomString(8)
+	b.parts = append(
+		b.parts, queryPart{
+			partType: filterOperatorPart,
+			sql:      "to_tsquery(@" + queryName + ")",
+			name:     queryName,
+			value:    quirk.CreateTsQuery(values...),
+		},
+	)
+	return b
+}
+
+func (b *filterBuilder) Not(not ...bool) FilterBuilder {
+	if len(not) > 0 && !not[0] {
+		return b
+	}
+	b.parts = append(b.parts, queryPart{partType: filterOperatorPart, sql: "NOT"})
 	return b
 }
 

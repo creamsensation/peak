@@ -17,10 +17,16 @@ func (m *modifier) Type() string {
 	return m.modifierType
 }
 
-func Or() Modifier {
+func Or(use ...bool) Modifier {
+	if len(use) > 0 && !use[0] {
+		return nil
+	}
 	return &modifier{modifierType: modifierOr}
 }
 
-func After() Modifier {
+func After(use ...bool) Modifier {
+	if len(use) > 0 && !use[0] {
+		return nil
+	}
 	return &modifier{modifierType: modifierAfter}
 }

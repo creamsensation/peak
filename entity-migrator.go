@@ -79,7 +79,7 @@ func (m *entityMigrator) createFieldsSql() string {
 		f := item.(*field)
 		sql := createSqlBuilder().
 			Q("\t"+f.name).
-			Q(f.fieldType).
+			Q(f.dataType).
 			If(f.notNull, "NOT NULL").
 			If(len(f.defaultValue) > 0, "DEFAULT "+f.defaultValue).
 			If(f.unique, "UNIQUE").

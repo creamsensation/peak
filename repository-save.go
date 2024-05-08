@@ -1,6 +1,8 @@
 package peak
 
-import "strings"
+import (
+	"strings"
+)
 
 type SaveRepository[R result] interface {
 	QueryBuilder
@@ -18,7 +20,12 @@ type saveRepository[E entity, R result] struct {
 	primaryKeyValue any
 }
 
-func (r *saveRepository[E, R]) mergeValues() BuildResult {
+const (
+	Insert = "INSERT"
+	Update = "UPDATE"
+)
+
+func (r *saveRepository[E, R]) buildValues() map[string]any {
 	values := make(map[string]any)
 	for _, vb := range r.values {
 		b := vb.Build()
@@ -26,26 +33,42 @@ func (r *saveRepository[E, R]) mergeValues() BuildResult {
 			values[k] = v
 		}
 	}
-	return BuildResult{Values: values}
+	return values
+}
+
+func (r *saveRepository[E, R]) createFieldsValues(operation string, values *map[string]any, fields ...Field) {
+	for _, item := range fields {
+		f := item.(*field)
+		if f.valueFactory == nil {
+			continue
+		}
+		v := f.valueFactory(operation, *values)
+		if v == nil {
+			continue
+		}
+		(*values)[f.name] = v
+	}
 }
 
 func (r *saveRepository[E, R]) Build() BuildResult {
-	v := r.mergeValues()
 	e := any(r.entity).(entity)
 	fields := e.Fields()
+	values := r.buildValues()
 	primaryKeyField := getPrimaryKeyField(fields...)
 	if primaryKeyField == nil {
 		panic(ErrorMissingPrimaryKey)
 	}
-	primaryKeyValue, ok := v.Values[primaryKeyField.name]
+	primaryKeyValue, ok := values[primaryKeyField.name]
 	if ok {
 		r.primaryKeyValue = primaryKeyValue
 	}
 	if r.primaryKeyValue == nil {
-		return r.buildInsert(v.Values)
+		r.createFieldsValues(Insert, &values, fields...)
+		return r.buildInsert(values)
 	}
+	r.createFieldsValues(Update, &values, fields...)
 	r.appendPrimaryKeyFilterIfNecessary(primaryKeyField)
-	return r.buildUpdate(v.Values)
+	return r.buildUpdate(values)
 }
 
 func (r *saveRepository[E, R]) Run(runner ...Runner) (R, error) {

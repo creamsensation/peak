@@ -1,5 +1,9 @@
 package peak
 
+import (
+	"reflect"
+)
+
 type FindRepository[R result] interface {
 	QueryBuilder
 	Run(runner ...Runner) (R, error)
@@ -55,6 +59,12 @@ func (r *findRepository[E, R]) Build() BuildResult {
 
 func (r *findRepository[E, R]) Run(runner ...Runner) (R, error) {
 	res := new(R)
+	t := reflect.TypeOf(res)
+	if t.Elem().Kind() == reflect.Slice {
+		slicePtr := reflect.New(t.Elem())
+		slicePtr.Elem().Set(reflect.MakeSlice(t.Elem(), 0, 0))
+		*res = slicePtr.Elem().Interface().(R)
+	}
 	if r.db == nil {
 		return *res, ErrorMissingDatabase
 	}

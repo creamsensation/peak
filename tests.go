@@ -1,8 +1,26 @@
 package peak
 
+import (
+	"time"
+	
+	"github.com/creamsensation/quirk"
+)
+
 type testModel struct {
 	Id    int    `db:"id"`
 	Email string `db:"email"`
+}
+
+type fulltextModel struct {
+	Id      int    `db:"id"`
+	Name    string `db:"name"`
+	Vectors string `db:"vectors"`
+}
+
+type timeModel struct {
+	Id        int       `db:"id"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
 }
 
 var (
@@ -42,6 +60,13 @@ func (e testEntity) Email() Field {
 	return e.Field("email").
 		Type("VARCHAR(255)").
 		NotNull()
+}
+
+func (e testEntity) Vectors() Field {
+	return e.Field("vectors").
+		Type("TSVECTOR").
+		NotNull().
+		Default("")
 }
 
 type bookModel struct {
@@ -111,4 +136,110 @@ func (e chapterEntity) BookId() Field {
 	return e.Field("book_id").
 		Type("INT").
 		Relationship(be.Id())
+}
+
+// test fulltext entity
+
+type fulltextEntity struct {
+	EntityBuilder
+}
+
+func (e fulltextEntity) Table() string {
+	return "fulltexts"
+}
+
+func (e fulltextEntity) Alias() string {
+	return "f"
+}
+
+func (e fulltextEntity) Fields() []Field {
+	return e.Register(
+		e.Id(),
+		e.Name(),
+		e.Vectors(),
+	)
+}
+
+func (e fulltextEntity) Id() Field {
+	return e.Field("id").
+		Type("SERIAL").
+		PrimaryKey()
+}
+
+func (e fulltextEntity) Name() Field {
+	return e.Field("name").
+		Type("VARCHAR(255)").
+		NotNull()
+}
+
+func (e fulltextEntity) Vectors() Field {
+	return e.Field("vectors").
+		TsVector().
+		NotNull().
+		Default("").
+		ValueFactory(
+			func(operation string, values Map) Value {
+				if operation == Insert {
+					return nil
+				}
+				return TsVector(
+					values[e.Name().Name()],
+				)
+			},
+		)
+}
+
+// test time entity
+
+type timeEntity struct {
+	EntityBuilder
+}
+
+func (e timeEntity) Table() string {
+	return "times"
+}
+
+func (e timeEntity) Alias() string {
+	return "t"
+}
+
+func (e timeEntity) Fields() []Field {
+	return e.Register(
+		e.Id(),
+		e.CreatedAt(),
+		e.UpdatedAt(),
+	)
+}
+
+func (e timeEntity) Id() Field {
+	return e.Field("id").
+		Type("SERIAL").
+		PrimaryKey()
+}
+
+func (e timeEntity) CreatedAt() Field {
+	return e.Field("created_at").
+		Type("TIMESTAMP").
+		NotNull().
+		Default(quirk.CurrentTimestamp).
+		ValueFactory(
+			func(operation string, values Map) Value {
+				if operation == Update {
+					return nil
+				}
+				return Safe(quirk.CurrentTimestamp)
+			},
+		)
+}
+
+func (e timeEntity) UpdatedAt() Field {
+	return e.Field("updated_at").
+		Type("TIMESTAMP").
+		NotNull().
+		Default(quirk.CurrentTimestamp).
+		ValueFactory(
+			func(operation string, values Map) Value {
+				return Safe(quirk.CurrentTimestamp)
+			},
+		)
 }

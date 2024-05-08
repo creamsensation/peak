@@ -13,6 +13,14 @@ func createTree(builders ...QueryBuilder) queryBuildersTree {
 	values := make([]*valuesBuilder, 0)
 	for _, builder := range builders {
 		switch b := builder.(type) {
+		case *fragmentBuilder:
+			builders = append(builders, b.builders...)
+		default:
+			continue
+		}
+	}
+	for _, builder := range builders {
+		switch b := builder.(type) {
 		case *filterBuilder:
 			filters = append(filters, b)
 		case *relationshipBuilder:

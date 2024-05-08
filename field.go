@@ -10,15 +10,18 @@ type Field interface {
 	NotNull(notNull ...bool) Field
 	Prefix(prefix string) Field
 	PrimaryKey(primaryKey ...bool) Field
-	Type(fieldType string) Field
+	Type(dataType string) Field
 	Unique(unique ...bool) Field
 	Relationship(relationship Field) Field
+	ValueFactory(fn func(operation string, values Map) Value) Field
+	Name() string
+	TsVector() Field
 }
 
 type field struct {
 	Field
 	defaultValue string
-	fieldType    string
+	dataType     string
 	name         string
 	notNull      bool
 	table        string
@@ -26,10 +29,22 @@ type field struct {
 	primaryKey   bool
 	relationship *field
 	unique       bool
+	valueFactory func(operation string, values Map) Value
+}
+
+func (f *field) Name() string {
+	return f.name
+}
+
+func (f *field) ValueFactory(fn func(operation string, values Map) Value) Field {
+	f.valueFactory = fn
+	return f
 }
 
 func (f *field) Default(value any) Field {
 	switch v := value.(type) {
+	case Safe:
+		f.defaultValue = fmt.Sprintf("%s", string(v))
 	case string:
 		f.defaultValue = fmt.Sprintf("'%s'", v)
 	default:
@@ -71,8 +86,13 @@ func (f *field) Relationship(relationship Field) Field {
 	return f
 }
 
-func (f *field) Type(fieldType string) Field {
-	f.fieldType = fieldType
+func (f *field) Type(dataType string) Field {
+	f.dataType = dataType
+	return f
+}
+
+func (f *field) TsVector() Field {
+	f.dataType = TsVectorDataType
 	return f
 }
 
