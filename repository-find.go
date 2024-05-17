@@ -65,6 +65,11 @@ func (r *findRepository[E, R]) Run(runner ...Runner) (R, error) {
 		slicePtr.Elem().Set(reflect.MakeSlice(t.Elem(), 0, 0))
 		*res = slicePtr.Elem().Interface().(R)
 	}
+	if t.Elem().Kind() == reflect.Map {
+		mapPtr := reflect.New(t.Elem())
+		mapPtr.Elem().Set(reflect.MakeMap(t.Elem()))
+		*res = mapPtr.Elem().Interface().(R)
+	}
 	if r.db == nil {
 		return *res, ErrorMissingDatabase
 	}
